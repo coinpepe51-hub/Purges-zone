@@ -1,5 +1,5 @@
-//worker.js-a whole lotta shi
-
+// worker.js — Baileys worker. Runs inside server.js process.
+// Pairing logic mirrors the working pair.js — 3s delay before requestPairingCode.
 require('dotenv').config();
 const {
     default: makeWASocket,
@@ -19,12 +19,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 const sockets = new Map();
 const rateMap = new Map();
 
-const MAX_PER_WINDOW = 8;   // raised from 5 — safer now that reports don't hang
+const MAX_PER_WINDOW = 8;
 const WINDOW_MS = 10 * 60 * 1000;
 const JITTER_MIN = 8000;
 const JITTER_MAX = 25000;
 
-const REPORT_TIMEOUT_MS = 8000;      // how long we wait for an ack before assuming sent
+const REPORT_TIMEOUT_MS = 8000;
 const SOCKET_QUERY_TIMEOUT_MS = 15000;
 
 function canReport(num) {
@@ -37,7 +37,29 @@ function recordReport(num) {
 }
 
 // ============================================================
-// AUTH STATE — from DB
+// SOCKET OPTIONS — mirrors the working pair.js
+// ============================================================
+function socketOptions(authState, version) {
+    return {
+        logger: pino({ level: 'silent' }),
+        printQRInTerminal: false,
+        auth: authState,
+        version,
+        browser: Browsers.ubuntu('Edge'),
+        getMessage: async () => ({ conversation: '' }),
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: SOCKET_QUERY_TIMEOUT_MS,
+        keepAliveIntervalMs: 30000,
+        emitOwnEvents: true,
+        fireInitQueries: true,
+        generateHighQualityLinkPreview: true,
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
+    };
+}
+
+// ============================================================
+// AUTH STATE — hydrates from DB, saves back to DB
 // ============================================================
 async function useDatabaseAuthState(phone) {
     let blob = await db.getSessionBlob(phone);
@@ -89,25 +111,13 @@ async function useDatabaseAuthState(phone) {
 }
 
 // ============================================================
-// SESSION LOADING
+// SESSION LOADING — for existing paired sessions
 // ============================================================
 async function loadSession(phone) {
     const { state, saveCreds } = await useDatabaseAuthState(phone);
     const { version } = await fetchLatestBaileysVersion();
 
-    const sock = makeWASocket({
-        logger: pino({ level: 'silent' }),
-        auth: state,
-        version,
-        browser: Browsers.ubuntu('Edge'),
-        printQRInTerminal: false,
-        syncFullHistory: false,
-        markOnlineOnConnect: false,
-        getMessage: async () => ({ conversation: '' }),
-        defaultQueryTimeoutMs: SOCKET_QUERY_TIMEOUT_MS,
-        connectTimeoutMs: 30000,
-        keepAliveIntervalMs: 30000,
-    });
+    const sock = makeWASocket(socketOptions(state, version));
 
     sock.ev.on('creds.update', saveCreds);
     sock.ev.on('connection.update', async (u) => {
@@ -150,7 +160,7 @@ async function loadAllSessions() {
 }
 
 // ============================================================
-// PAIRING POLLER
+// PAIRING POLLER — mirrors pair.js flow
 // ============================================================
 async function pollPairAttempts() {
     const { rows } = await db.pool.query(
@@ -161,23 +171,15 @@ async function pollPairAttempts() {
     );
     for (const a of rows) {
         if (sockets.has(a.phone_number)) continue;
+
+        // mark claimed immediately so we don't double-process on the next poll
+        await db.pool.query(
+            `UPDATE pair_attempts SET status = 'requesting' WHERE id = $1`,
+            [a.id]
+        );
+
         try {
-            const { state, saveCreds } = await useDatabaseAuthState(a.phone_number);
-            const { version } = await fetchLatestBaileysVersion();
-
-            const sock = makeWASocket({
-                logger: pino({ level: 'silent' }),
-                auth: state,
-                version,
-                browser: Browsers.ubuntu('Edge'),
-                printQRInTerminal: false,
-                syncFullHistory: false,
-                markOnlineOnConnect: false,
-                defaultQueryTimeoutMs: SOCKET_QUERY_TIMEOUT_MS,
-            });
-
-            sock.ev.on('creds.update', saveCreds);
-
+            // ensure the session row exists so blob writes have a target
             await db.pool.query(
                 `INSERT INTO sessions (owner_id, phone_number, status)
                  VALUES ($1, $2, 'pending')
@@ -186,15 +188,48 @@ async function pollPairAttempts() {
                 [a.user_id, a.phone_number]
             );
 
-            const code = await sock.requestPairingCode(a.phone_number);
+            const { state, saveCreds } = await useDatabaseAuthState(a.phone_number);
+            const { version } = await fetchLatestBaileysVersion();
+
+            const sock = makeWASocket(socketOptions(state, version));
+            sock.ev.on('creds.update', saveCreds);
+
+            // ---- match pair.js: wait 3s before requesting code ----
+            // the WS must be open for requestPairingCode to succeed
+            await sleep(3000);
+
+            // strip non-digits, same as pair.js
+            let phoneNumber = a.phone_number.replace(/[^0-9]/g, '');
+            if (!phoneNumber) throw new Error('invalid phone number after sanitize');
+
+            let code;
+            try {
+                code = await sock.requestPairingCode(phoneNumber);
+            } catch (err) {
+                console.log(`[worker] requestPairingCode failed for ${a.phone_number}: ${err.message}`);
+                await db.pool.query(
+                    `UPDATE pair_attempts SET status = 'failed', code = $1 WHERE id = $2`,
+                    [`ERROR: ${err.message}`.slice(0, 200), a.id]
+                );
+                try { sock.end(undefined); } catch {}
+                continue;
+            }
+
+            if (!code) throw new Error('empty pairing code');
+            code = code.match(/.{1,4}/g)?.join('-') || code;
+
             await db.pool.query(
                 `UPDATE pair_attempts SET code = $1, status = 'code_ready' WHERE id = $2`,
                 [code, a.id]
             );
             console.log(`[worker] pairing code for ${a.phone_number}: ${code}`);
 
+            // wait for user to enter code
             sock.ev.on('connection.update', async (u) => {
-                if (u.connection === 'open') {
+                const { connection, lastDisconnect } = u;
+                const reason = lastDisconnect?.error?.output?.statusCode;
+
+                if (connection === 'open') {
                     await db.pool.query(
                         `UPDATE pair_attempts SET status='connected' WHERE id=$1`,
                         [a.id]
@@ -206,10 +241,43 @@ async function pollPairAttempts() {
                     sockets.set(a.phone_number, { sock, healthy: true });
                     console.log(`[worker] paired ${a.phone_number}`);
                 }
+                if (connection === 'close') {
+                    console.log(`[worker] pair socket closed for ${a.phone_number} (${reason})`);
+                    // only mark failed if we never got to connected
+                    const { rows: cur } = await db.pool.query(
+                        `SELECT status FROM pair_attempts WHERE id = $1`,
+                        [a.id]
+                    );
+                    if (cur[0] && cur[0].status === 'code_ready') {
+                        await db.pool.query(
+                            `UPDATE pair_attempts SET status='failed' WHERE id=$1`,
+                            [a.id]
+                        );
+                    }
+                }
             });
+
+            // safety timeout — if user never completes pairing within 10 min, mark failed
+            setTimeout(async () => {
+                const { rows: cur } = await db.pool.query(
+                    `SELECT status FROM pair_attempts WHERE id = $1`,
+                    [a.id]
+                );
+                if (cur[0] && (cur[0].status === 'code_ready' || cur[0].status === 'requesting')) {
+                    await db.pool.query(
+                        `UPDATE pair_attempts SET status='failed' WHERE id=$1`,
+                        [a.id]
+                    );
+                    try { sock.end(undefined); } catch {}
+                }
+            }, 10 * 60 * 1000);
+
         } catch (e) {
             console.log(`[worker] pair fail ${a.phone_number}: ${e.message}`);
-            await db.pool.query(`UPDATE pair_attempts SET status='failed' WHERE id=$1`, [a.id]);
+            await db.pool.query(
+                `UPDATE pair_attempts SET status='failed', code = $1 WHERE id=$2`,
+                [`ERROR: ${e.message}`.slice(0, 200), a.id]
+            );
         }
     }
 }
@@ -233,7 +301,7 @@ function makeEvidence(category) {
 }
 
 // ============================================================
-// REPORT SENDING — fire-and-forget
+// REPORT SENDING — fire and forget
 // ============================================================
 const CATEGORIES = {
     CSAM: { code: 1, priority: 'critical' },
@@ -244,9 +312,6 @@ const CATEGORIES = {
     SPAM: { code: 6, priority: 'low' },
 };
 
-// WhatsApp's report stanza is write-only — no ack comes back.
-// We race a short timer; either the query resolves, errors as 408,
-// or the timer fires. Any of those = "sent".
 function fireReport(sock, { target, category, reasonText }) {
     const cat = CATEGORIES[category];
     if (!cat) return Promise.reject(new Error('bad category'));
