@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08080a">
+<title>purgers archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+    --bg:#08080a;
+    --panel:#0d0d10;
+    --panel-2:#121216;
+    --line:#1a1a1f;
+    --line-2:#26262c;
+    --ink:#e7e7ea;
+    --dim:#6a6a74;
+    --dim-2:#3a3a42;
+    --accent:#c9c9ce;
+    --hot:#c11d1d;
+    --hot-dim:#5a1414;
+    --pad-x: clamp(1rem, 4vw, 3rem);
+    --gap:   clamp(0.75rem, 1.5vw, 1.25rem);
+    --radius: 2px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+    background:var(--bg);color:var(--ink);
+    font-family:'Inter',system-ui,sans-serif;font-weight:400;
+    font-size:clamp(14px, 0.35vw + 13px, 16px);
+    line-height:1.55;-webkit-font-smoothing:antialiased;
+    letter-spacing:-0.005em;overflow-x:hidden;min-height:100vh;
+}
+body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
+    background-image:
+        radial-gradient(circle at 20% 10%, rgba(255,255,255,0.012), transparent 40%),
+        radial-gradient(circle at 80% 90%, rgba(255,255,255,0.008), transparent 40%);
+}
+nav{
+    position:sticky;top:0;z-index:20;display:flex;align-items:center;
+    gap:clamp(0.9rem, 1.8vw, 1.75rem);
+    padding:clamp(0.7rem, 1.4vw, 1.15rem) var(--pad-x);
+    border-bottom:1px solid var(--line);
+    background:rgba(8,8,10,0.85);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+    min-height:clamp(52px, 4.5vw, 62px);flex-wrap:wrap;
+}
+nav .brand{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.66rem, 0.7vw + 0.5rem, 0.78rem);
+    letter-spacing:0.16em;text-transform:uppercase;color:var(--ink);
+    margin-right:clamp(0.5rem, 1.5vw, 1.5rem);
+    display:inline-flex;align-items:center;gap:0.6rem;white-space:nowrap;
+}
+nav .brand::before{
+    content:'';width:5px;height:5px;background:var(--hot);
+    box-shadow:0 0 6px var(--hot);flex:0 0 auto;
+}
+nav a{
+    color:var(--dim);text-decoration:none;
+    font-size:clamp(0.68rem, 0.7vw + 0.5rem, 0.78rem);
+    font-family:'JetBrains Mono',monospace;letter-spacing:0.03em;
+    transition:color .15s;white-space:nowrap;
+}
+nav a:hover{color:var(--ink)}
+nav .spacer{flex:1 1 auto}
+nav .who{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.62rem, 0.6vw + 0.5rem, 0.72rem);
+    color:var(--dim-2);letter-spacing:0.05em;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;
+    max-width:clamp(120px, 25vw, 320px);
+}
+nav .who .tier{margin-left:0.6rem}
+nav .who .tier.premium{color:var(--hot)}
+nav .who .tier.admin{color:var(--accent)}
+
+main{
+    position:relative;z-index:5;width:100%;
+    max-width:min(680px, 100% - 2rem);
+    margin:clamp(1.5rem, 5vh, 5rem) auto;
+    padding:0 var(--pad-x);
+}
+main.wide{max-width:min(1100px, 100% - 2rem)}
+@media (min-width: 1920px){
+    main{max-width:820px}
+    main.wide{max-width:1280px}
+    html,body{font-size:17px}
+}
+@media (min-width: 2560px){
+    main{max-width:960px}
+    main.wide{max-width:1440px}
+    html,body{font-size:18px}
+}
+
+h1{
+    font-weight:300;font-size:clamp(1.3rem, 1.2vw + 1rem, 1.7rem);
+    letter-spacing:-0.02em;color:var(--ink);margin-bottom:0.5rem;
+}
+h1::before{
+    content:'';display:inline-block;width:6px;height:6px;
+    background:var(--ink);margin-right:0.9rem;
+    vertical-align:middle;transform:translateY(-2px);
+}
+h3{
+    font-family:'JetBrains Mono',monospace;font-weight:400;
+    font-size:clamp(0.6rem, 0.5vw + 0.5rem, 0.68rem);
+    letter-spacing:0.18em;text-transform:uppercase;color:var(--dim);
+    margin-bottom:1rem;margin-top:clamp(1.5rem, 3vw, 2.5rem);
+}
+.sub{
+    color:var(--dim);
+    font-size:clamp(0.82rem, 0.4vw + 0.75rem, 0.9rem);
+    margin-bottom:clamp(1.5rem, 3vw, 2.5rem);
+    max-width:60ch;line-height:1.7;
+}
+
+label{
+    display:block;margin-bottom:1.3rem;
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.58rem, 0.5vw + 0.5rem, 0.66rem);
+    letter-spacing:0.14em;text-transform:uppercase;color:var(--dim);
+}
+input,select,textarea{
+    display:block;width:100%;margin-top:0.55rem;
+    padding:clamp(0.6rem, 0.6vw + 0.5rem, 0.8rem) clamp(0.7rem, 0.8vw + 0.6rem, 0.95rem);
+    background:var(--panel);color:var(--ink);
+    border:1px solid var(--line);border-radius:var(--radius);
+    font:inherit;font-size:clamp(0.85rem, 0.35vw + 0.78rem, 0.92rem);
+    font-family:'JetBrains Mono',monospace;
+    transition:border-color .15s, background .15s;min-height:42px;
+}
+input:focus,select:focus,textarea:focus{
+    outline:0;border-color:var(--line-2);background:var(--panel-2);
+}
+input::placeholder,textarea::placeholder{color:var(--dim-2)}
+
+button{
+    padding:clamp(0.62rem, 0.6vw + 0.5rem, 0.78rem) clamp(1.1rem, 1.2vw + 0.9rem, 1.5rem);
+    background:transparent;color:var(--ink);
+    border:1px solid var(--line-2);border-radius:var(--radius);
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.66rem, 0.55vw + 0.55rem, 0.74rem);
+    letter-spacing:0.12em;text-transform:uppercase;
+    cursor:pointer;transition:all .15s;min-height:40px;white-space:nowrap;
+}
+button:hover{border-color:var(--ink);background:var(--panel-2)}
+button:disabled{opacity:.35;cursor:not-allowed}
+button.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.primary:hover{background:var(--accent);border-color:var(--accent)}
+button.danger{border-color:var(--hot-dim);color:var(--hot)}
+button.danger:hover{border-color:var(--hot);background:rgba(193,29,29,0.06)}
+
+.row{display:flex;gap:var(--gap);align-items:center;flex-wrap:wrap}
+
+.panel{
+    padding:clamp(0.9rem, 1.2vw, 1.2rem);
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);margin-bottom:0.75rem;
+    transition:border-color .15s;
+}
+.panel:hover{border-color:var(--line-2)}
+
+.badge{
+    display:inline-flex;align-items:center;gap:0.45rem;
+    padding:0.14rem 0.55rem;border-radius:var(--radius);
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.58rem, 0.4vw + 0.5rem, 0.65rem);
+    letter-spacing:0.1em;text-transform:uppercase;
+    background:var(--panel-2);color:var(--dim);
+    border:1px solid var(--line);white-space:nowrap;
+}
+.badge::before{content:'';width:4px;height:4px;background:var(--dim);border-radius:50%}
+.badge.ok{color:var(--accent)}
+.badge.ok::before{background:var(--accent);box-shadow:0 0 5px rgba(201,201,206,0.6)}
+.badge.pend{color:var(--dim)}
+.badge.pend::before{background:var(--dim)}
+.badge.fail{color:var(--hot)}
+.badge.fail::before{background:var(--hot);box-shadow:0 0 5px rgba(193,29,29,0.7)}
+.badge.premium{color:var(--hot);border-color:var(--hot-dim)}
+.badge.premium::before{background:var(--hot)}
+
+.status{
+    margin-top:1.75rem;padding:1rem 1.1rem;
+    background:var(--panel);border:1px solid var(--line);
+    border-left:2px solid var(--dim-2);border-radius:var(--radius);
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.7rem, 0.5vw + 0.6rem, 0.8rem);
+    color:var(--dim);white-space:pre-wrap;line-height:1.8;
+    overflow-wrap:anywhere;
+}
+.status.ok{color:var(--accent);border-left-color:var(--accent)}
+.status.err{color:var(--hot);border-left-color:var(--hot)}
+.hidden{display:none}
+
+.table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{
+    width:100%;border-collapse:collapse;
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.68rem, 0.4vw + 0.6rem, 0.76rem);
+    color:var(--dim);min-width:520px;
+}
+th{
+    text-align:left;padding:0.65rem 0.7rem;color:var(--dim-2);
+    font-weight:400;font-size:clamp(0.56rem, 0.4vw + 0.5rem, 0.64rem);
+    letter-spacing:0.16em;text-transform:uppercase;
+    border-bottom:1px solid var(--line);white-space:nowrap;
+}
+td{
+    padding:0.75rem 0.7rem;border-bottom:1px solid var(--line);
+    color:var(--ink);font-weight:300;white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;max-width:280px;
+}
+tr:hover td{background:var(--panel)}
+
+.tier-free{color:var(--dim)}
+.tier-premium{color:var(--hot);letter-spacing:0.08em}
+.tier-admin{color:var(--accent);letter-spacing:0.08em}
+
+.muted{color:var(--dim);font-size:0.78rem}
+.dim{color:var(--dim-2)}
+
+.stat-grid{
+    display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+    gap:var(--gap);margin-bottom:2rem;
+}
+.stat{
+    padding:clamp(0.9rem, 1.2vw, 1.25rem) clamp(1rem, 1.3vw, 1.3rem);
+    background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);min-height:clamp(90px, 12vw, 120px);
+    display:flex;flex-direction:column;justify-content:center;
+}
+.stat .label{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.55rem, 0.4vw + 0.5rem, 0.62rem);
+    letter-spacing:0.18em;text-transform:uppercase;
+    color:var(--dim-2);margin-bottom:0.5rem;
+}
+.stat .value{
+    font-weight:300;font-size:clamp(1.4rem, 2vw + 1rem, 2rem);
+    letter-spacing:-0.03em;color:var(--ink);line-height:1;
+}
+.stat .sub{
+    font-family:'JetBrains Mono',monospace;
+    font-size:clamp(0.6rem, 0.4vw + 0.5rem, 0.68rem);
+    color:var(--dim);margin-top:0.4rem;letter-spacing:0.05em;
+}
+
+.tier-grid{display:grid;grid-template-columns:1fr;gap:var(--gap);margin-bottom:1.5rem}
+@media (min-width:640px){.tier-grid{grid-template-columns:1fr 1fr}}
+
+@media (max-width:640px){
+    nav{padding:0.65rem var(--pad-x);gap:0.75rem}
+    nav .brand{margin-right:0.5rem}
+    nav .spacer{display:none}
+    nav .who{max-width:40vw}
+    nav{flex-wrap:wrap;row-gap:0.4rem}
+    main{margin-top:1.5rem}
+    button{width:100%}
+    .row button{width:auto}
+    h1::before{width:5px;height:5px;margin-right:0.7rem}
+}
+@media (hover:none){
+    .panel:hover{border-color:var(--line)}
+    tr:hover td{background:transparent}
+    button:hover{border-color:var(--line-2);background:transparent}
+    button.primary:hover{background:var(--ink);border-color:var(--ink)}
+}
+</style>
+</head>
+<body>
+<nav>
+    <span class="brand">purgers archive</span>
+    <a href="#/">home</a>
+    <a href="#/report">dispatch</a>
+    <a href="#/pair">link</a>
+    <a href="#/dashboard">archive</a>
+    <a href="#/premium">ascent</a>
+    <span class="spacer"></span>
+    <span class="who" id="nav-user"></span>
+    <a href="#" id="nav-admin" class="hidden">control</a>
+    <a href="#" id="nav-logout" class="hidden">exit</a>
+    <a href="#/login" id="nav-login">enter</a>
+</nav>
+<main id="app"></main>
+
+<script>
+const API = window.location.origin.replace(/\/$/, '') + '/api';
+let token = localStorage.getItem('wtr_token');
+let me = null;
+let limits = null;
+
+async function api(path, opts = {}) {
+    const res = await fetch(API + path, {
+        ...opts,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: 'Bearer ' + token } : {}),
+            ...(opts.headers || {}),
+        },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'request failed');
+    return data;
+}
+
+function setToken(t) {
+    token = t;
+    if (t) localStorage.setItem('wtr_token', t);
+    else localStorage.removeItem('wtr_token');
+    refreshUser();
+}
+
+async function refreshUser() {
+    if (!token) { me = null; limits = null; renderNav(); return; }
+    try {
+        const r = await api('/auth/me');
+        me = r.user; limits = r.limits;
+    } catch { setToken(null); }
+    renderNav();
+}
+
+function renderNav() {
+    document.getElementById('nav-login').classList.toggle('hidden', !!me);
+    document.getElementById('nav-logout').classList.toggle('hidden', !me);
+    document.getElementById('nav-admin').classList.toggle('hidden', !me || me.tier !== 'admin');
+    const w = document.getElementById('nav-user');
+    if (me) {
+        const until = me.premium_until ? ` · ${Math.max(0, Math.ceil((new Date(me.premium_until) - Date.now()) / 86400000))}d` : '';
+        w.innerHTML = `${me.email}<span class="tier ${me.tier}">${me.tier}${until}</span>`;
+    } else {
+        w.textContent = '';
+    }
+}
+
+document.getElementById('nav-logout').onclick = (e) => {
+    e.preventDefault(); setToken(null); location.hash = '#/';
+};
+document.getElementById('nav-admin').onclick = (e) => {
+    e.preventDefault(); location.hash = '#/admin';
+};
+
+const routes = {
+    '': HomePage, '#/': HomePage,
+    '#/login': LoginPage, '#/register': RegisterPage,
+    '#/report': ReportPage, '#/pair': PairPage,
+    '#/dashboard': DashboardPage, '#/premium': PremiumPage,
+    '#/admin': AdminPage,
+};
+
+async function render() {
+    const app = document.getElementById('app');
+    app.classList.toggle('wide', (location.hash || '#/') === '#/admin');
+    const hash = location.hash || '#/';
+    const view = routes[hash] || HomePage;
+    app.innerHTML = '';
+    try { await view(app); } catch (e) { app.innerHTML = `<div class="status err">${e.message}</div>`; }
+}
+window.addEventListener('hashchange', render);
+window.addEventListener('load', async () => { await refreshUser(); await render(); });
+
+async function HomePage(app) {
+    app.innerHTML = `
+        <h1>the purge begins</h1>
+        <p class="sub">
+            anonymous dispatch. encrypted nodes. no questions asked.
+            reports leave the archive in under sixty seconds.
+        </p>
+        <div class="row" style="margin-top:2rem">
+            ${me
+                ? `<button class="primary" onclick="location.hash='#/report'">dispatch report</button>
+                   <button onclick="location.hash='#/dashboard'">view archive</button>`
+                : `<button class="primary" onclick="location.hash='#/register'">enter</button>
+                   <button onclick="location.hash='#/login'">sign in</button>`}
+        </div>
+    `;
+}
+
+async function LoginPage(app) {
+    app.innerHTML = `
+        <h1>enter</h1>
+        <p class="sub">you already have access. prove it.</p>
+        <label>email <input id="e" type="email" autocomplete="email"></label>
+        <label>password <input id="p" type="password" autocomplete="current-password"></label>
+        <button class="primary" id="go">sign in</button>
+        <div id="s" class="status hidden"></div>
+    `;
+    document.getElementById('go').onclick = async () => {
+        const s = document.getElementById('s'); s.classList.add('hidden');
+        try {
+            const r = await api('/auth/login', { method:'POST', body: JSON.stringify({ email: e.value, password: p.value })});
+            setToken(r.token); location.hash = '#/dashboard';
+        } catch (err) { s.textContent = err.message; s.className = 'status err'; }
+    };
+}
+
+async function RegisterPage(app) {
+    app.innerHTML = `
+        <h1>enter</h1>
+        <p class="sub">create an identity. it doesn't have to be real.</p>
+        <label>email <input id="e" type="email" autocomplete="email"></label>
+        <label>password <input id="p" type="password" autocomplete="new-password"></label>
+        <button class="primary" id="go">create</button>
+        <div id="s" class="status hidden"></div>
+    `;
+    document.getElementById('go').onclick = async () => {
+        const s = document.getElementById('s'); s.classList.add('hidden');
+        try {
+            const r = await api('/auth/register', { method:'POST', body: JSON.stringify({ email: e.value, password: p.value })});
+            setToken(r.token); location.hash = '#/dashboard';
+        } catch (err) { s.textContent = err.message; s.className = 'status err'; }
+    };
+}
+
+async function ReportPage(app) {
+    if (!me) { location.hash = '#/login'; return; }
+    const cats = limits?.categories || ['SPAM','HATE_SPEECH'];
+    const perJob = limits?.perJob || 3;
+    const daily = limits?.dailyReports || 5;
+    const canEvidence = limits?.evidence || false;
+    const fullPool = limits?.fullPool || false;
+
+    app.innerHTML = `
+        <h1>dispatch</h1>
+        <p class="sub">${fullPool
+            ? `${daily}/day · ${perJob} per dispatch · all categories. full node pool.`
+            : `${daily}/day · ${perJob} per dispatch · ${cats.length} categories. your own nodes only.`}</p>
+        <label>target <input id="t" placeholder="+000 00 000 0000"></label>
+        <label>category
+            <select id="c">${cats.map(x => `<option>${x.toLowerCase()}</option>`).join('')}</select>
+        </label>
+        <label>reason <span class="dim">(optional)</span>
+            <textarea id="r" rows="3" placeholder="nothing to say is fine"></textarea>
+        </label>
+        <label>reports to fire <span class="dim">(max ${perJob})</span>
+            <input id="n" type="number" value="${perJob}" min="1" max="${perJob}">
+        </label>
+        ${canEvidence ? `
+        <label style="display:flex;align-items:center;gap:0.6rem;font-family:inherit;font-size:0.8rem;text-transform:none;letter-spacing:0;color:var(--dim)">
+            <input type="checkbox" id="ev" checked style="width:auto;margin:0">
+            attach synthetic evidence
+        </label>
+        ` : ''}
+        <button class="primary" id="go">dispatch</button>
+        <div id="s" class="status hidden"></div>
+    `;
+    document.getElementById('go').onclick = async () => {
+        const s = document.getElementById('s'); s.classList.add('hidden');
+        try {
+            const body = {
+                target: t.value,
+                category: c.value.toUpperCase(),
+                reason: r.value,
+                reports: parseInt(n.value, 10),
+                attachEvidence: canEvidence ? document.getElementById('ev').checked : false,
+            };
+            const res = await api('/report', { method:'POST', body: JSON.stringify(body)});
+            s.textContent = `job ${res.jobId}\nwatching…`;
+            s.className = 'status ok';
+            pollJob(res.jobId, s);
+        } catch (err) { s.textContent = err.message; s.className = 'status err'; }
+    };
+}
+
+async function pollJob(id, el) {
+    const tick = async () => {
+        try {
+            const j = await api('/job/' + id);
+            if (j.status === 'done' || j.status === 'failed') {
+                el.textContent = `job ${id}\nstatus    ${j.status}\nfired     ${j.fired}\nok        ${j.ok}\n${j.error || ''}`;
+                el.className = 'status ' + (j.status === 'done' ? 'ok' : 'err');
+                return;
+            }
+            el.textContent = `job ${id}\nstatus    ${j.status}\nfired     ${j.fired}`;
+            setTimeout(tick, 4000);
+        } catch (e) { el.textContent = e.message; el.className = 'status err'; }
+    };
+    tick();
+}
+
+async function PairPage(app) {
+    if (!me) { location.hash = '#/login'; return; }
+    const maxNodes = limits?.maxNodes || 10;
+    app.innerHTML = `
+        <h1>link</h1>
+        <p class="sub">
+            a node is a number. enter it, take the code,
+            link it in whatsapp → linked devices → link with phone number.
+            <br><span class="dim">up to ${maxNodes} nodes on your tier. free nodes join the shared pool — premium dispatches may use them.</span>
+        </p>
+        <label>phone number <input id="p" placeholder="+000 00 000 0000"></label>
+        <button class="primary" id="go">request code</button>
+        <div id="s" class="status hidden"></div>
+        <div id="st" class="status hidden"></div>
+    `;
+    document.getElementById('go').onclick = async () => {
+        const s = document.getElementById('s'); const st = document.getElementById('st');
+        s.classList.add('hidden'); st.classList.add('hidden');
+        try {
+            const r = await api('/pair/start', { method:'POST', body: JSON.stringify({ phoneNumber: p.value })});
+            s.textContent = 'waiting on code from node…';
+            s.className = 'status ok';
+            pollPair(r.attemptId, s, st);
+        } catch (err) { s.textContent = err.message; s.className = 'status err'; }
+    };
+}
+
+async function pollPair(id, s, st) {
+    const tick = async () => {
+        try {
+            const r = await api('/pair/status/' + id);
+            if (r.code) { s.textContent = `code    ${r.code}`; s.className = 'status ok'; }
+            if (r.status === 'connected') {
+                st.textContent = 'node linked.';
+                st.className = 'status ok';
+                return;
+            }
+            if (r.status === 'failed') {
+                st.textContent = 'linking failed.';
+                st.className = 'status err';
+                return;
+            }
+            setTimeout(tick, 3000);
+        } catch (e) { st.textContent = e.message; st.className = 'status err'; }
+    };
+    tick();
+}
+
+async function DashboardPage(app) {
+    if (!me) { location.hash = '#/login'; return; }
+    app.innerHTML = `<h1>archive</h1><div id="c" class="muted">loading…</div>`;
+    try {
+        const sess = (await api('/sessions')).sessions;
+        const jobs = (await api('/jobs')).jobs;
+        document.getElementById('c').innerHTML = `
+            <h3>your nodes · ${sess.length}/${limits?.maxNodes || 10}</h3>
+            ${sess.length ? sess.map(s => `
+                <div class="panel">
+                    <div class="row">
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.82rem">${s.phone_number}</span>
+                        <span class="badge ${s.status==='connected'?'ok':s.status==='dead'?'fail':'pend'}">${s.status}</span>
+                        <span class="spacer" style="flex:1"></span>
+                        <button class="danger" onclick="deleteSession('${s.id}')">unlink</button>
+                    </div>
+                    <div class="muted" style="margin-top:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.7rem">
+                        reports  ${s.reports_count}
+                    </div>
+                </div>
+            `).join('') : '<p class="muted">no nodes linked. <a href="#/pair" style="color:var(--ink)">link one</a>.</p>'}
+
+            <h3>operations</h3>
+            ${jobs.length ? jobs.map(j => `
+                <div class="panel">
+                    <div class="row">
+                        <span style="font-family:'JetBrains Mono',monospace;font-size:0.8rem">${j.target}</span>
+                        <span class="badge">${j.category.toLowerCase()}</span>
+                        <span class="badge ${j.status==='done'?'ok':j.status==='failed'?'fail':'pend'}">${j.status}</span>
+                    </div>
+                    <div class="muted" style="margin-top:0.5rem;font-family:'JetBrains Mono',monospace;font-size:0.7rem">
+                        fired ${j.reports_fired}  ·  ok ${j.reports_ok}
+                    </div>
+                </div>
+            `).join('') : '<p class="muted">no operations yet.</p>'}
+        `;
+    } catch (e) {
+        document.getElementById('c').innerHTML = `<div class="status err">${e.message}</div>`;
+    }
+}
+
+window.deleteSession = async (id) => {
+    if (!confirm('unlink this node?')) return;
+    await api('/sessions/' + id, { method: 'DELETE' });
+    render();
+};
+
+async function PremiumPage(app) {
+    app.innerHTML = `
+        <h1>ascent</h1>
+        <p class="sub">same nodes. heavier weight. full pool. no noise.</p>
+
+        <div class="tier-grid">
+            <div class="stat">
+                <div class="label">free</div>
+                <div class="value">$0</div>
+                <div class="sub">entry tier</div>
+            </div>
+            <div class="stat" style="border-color:var(--hot-dim)">
+                <div class="label" style="color:var(--hot)">premium</div>
+                <div class="value">by invitation</div>
+                <div class="sub">issued by control</div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <h3 style="margin-top:0">free tier</h3>
+            <div class="muted" style="line-height:2;font-family:'JetBrains Mono',monospace;font-size:0.74rem">
+                · 10 nodes<br>
+                · 5 reports / day<br>
+                · 3 per dispatch<br>
+                · spam + hate_speech only<br>
+                · your own nodes only
+            </div>
+        </div>
+
+        <div class="panel" style="border-color:var(--hot-dim)">
+            <h3 style="margin-top:0;color:var(--hot)">premium tier</h3>
+            <div class="muted" style="line-height:2;font-family:'JetBrains Mono',monospace;font-size:0.74rem">
+                · 50 nodes<br>
+                · 100 reports / day<br>
+                · 20 per dispatch<br>
+                · all 6 categories<br>
+                · synthetic evidence<br>
+                · priority queue<br>
+                · full node pool — every linked node
+            </div>
+        </div>
+
+        <p class="sub" style="margin-top:1.5rem">
+            premium is issued directly by control. ask.
+        </p>
+    `;
+}
+
+async function AdminPage(app) {
+    if (!me || me.tier !== 'admin') { location.hash = '#/'; return; }
+    app.innerHTML = `
+        <h1>control</h1>
+        <div id="stats" class="stat-grid"></div>
+
+        <h3>issue premium</h3>
+        <div class="panel">
+            <div class="row">
+                <label style="flex:1;min-width:180px">email <input id="cu-e" type="email"></label>
+                <label style="flex:1;min-width:140px">password <input id="cu-p" type="text"></label>
+                <label style="flex:0 0 110px">days <input id="cu-d" type="number" value="30" min="1"></label>
+                <label style="flex:0 0 130px">tier
+                    <select id="cu-t">
+                        <option value="premium">premium</option>
+                        <option value="free">free</option>
+                    </select>
+                </label>
+            </div>
+            <button class="primary" id="cu-go" style="margin-top:0.75rem">create</button>
+            <div id="cu-s" class="status hidden" style="margin-top:1rem"></div>
+        </div>
+
+        <h3>identities</h3>
+        <div id="users"></div>
+
+        <h3>nodes</h3>
+        <div id="sess"></div>
+
+        <h3>operations</h3>
+        <div id="jobs"></div>
+    `;
+
+    const stats = await api('/admin/stats');
+    document.getElementById('stats').innerHTML = `
+        <div class="stat"><div class="label">users</div><div class="value">${stats.users.n}</div><div class="sub">${stats.users.p} premium</div></div>
+        <div class="stat"><div class="label">nodes</div><div class="value">${stats.sessions.c}<span style="color:var(--dim-2)">/${stats.sessions.n}</span></div><div class="sub">connected</div></div>
+        <div class="stat"><div class="label">jobs</div><div class="value">${stats.jobs.n}</div><div class="sub">${stats.jobs.p} pending</div></div>
+    `;
+
+    document.getElementById('cu-go').onclick = async () => {
+        const s = document.getElementById('cu-s'); s.classList.add('hidden');
+        try {
+            const r = await api('/admin/users/create', {
+                method: 'POST',
+                body: JSON.stringify({
+                    email: document.getElementById('cu-e').value,
+                    password: document.getElementById('cu-p').value,
+                    tier: document.getElementById('cu-t').value,
+                    durationDays: parseInt(document.getElementById('cu-d').value, 10),
+                }),
+            });
+            s.textContent = `created ${r.user.email} · ${r.user.tier}`;
+            s.className = 'status ok';
+            render();
+        } catch (e) { s.textContent = e.message; s.className = 'status err'; }
+    };
+
+    const users = (await api('/admin/users')).users;
+    document.getElementById('users').innerHTML = `
+        <div class="table-wrap">
+        <table>
+        <tr><th>email</th><th>tier</th><th>until</th><th>today</th><th></th></tr>
+        ${users.map(u => {
+            const until = u.premium_until ? new Date(u.premium_until).toISOString().slice(0,10) : '—';
+            return `
+            <tr>
+                <td>${u.email}</td>
+                <td class="tier-${u.tier}">${u.tier}</td>
+                <td class="muted">${until}</td>
+                <td>${u.reports_today}</td>
+                <td>
+                    <button onclick="issue('${u.id}',30)">+30d</button>
+                    <button onclick="issue('${u.id}',90)">+90d</button>
+                    <button onclick="setTier('${u.id}','free')">-prem</button>
+                    <button class="${u.banned?'':'danger'}" onclick="banUser('${u.id}',${!u.banned})">${u.banned?'unban':'ban'}</button>
+                    <button class="danger" onclick="delUser('${u.id}')">del</button>
+                </td>
+            </tr>`;
+        }).join('')}
+        </table>
+        </div>
+    `;
+
+    const sess = (await api('/admin/sessions')).sessions;
+    document.getElementById('sess').innerHTML = `
+        <div class="table-wrap">
+        <table>
+        <tr><th>number</th><th>owner</th><th>status</th><th>reports</th><th></th></tr>
+        ${sess.map(s => `
+            <tr>
+                <td>${s.phone_number}</td>
+                <td class="muted">${s.owner_email || '—'}</td>
+                <td><span class="badge ${s.status==='connected'?'ok':s.status==='dead'?'fail':'pend'}">${s.status}</span></td>
+                <td>${s.reports_count || 0}</td>
+                <td>
+                    <button class="danger" onclick="adminDeleteSession('${s.id}')">del</button>
+                </td>
+            </tr>
+        `).join('')}
+        </table>
+        </div>
+    `;
+
+    const jobs = (await api('/admin/jobs')).jobs;
+    document.getElementById('jobs').innerHTML = `
+        <div class="table-wrap">
+        <table>
+        <tr><th>target</th><th>user</th><th>cat</th><th>status</th><th>fired/ok</th></tr>
+        ${jobs.map(j => `
+            <tr>
+                <td>${j.target}</td>
+                <td class="muted">${j.user_email || '—'}</td>
+                <td>${j.category.toLowerCase()}</td>
+                <td><span class="badge ${j.status==='done'?'ok':j.status==='failed'?'fail':'pend'}">${j.status}</span></td>
+                <td>${j.reports_fired}/${j.reports_ok}</td>
+            </tr>
+        `).join('')}
+        </table>
+        </div>
+    `;
+}
+
+window.setTier = async (id, tier) => {
+    await api('/admin/users/' + id + '/tier', { method:'POST', body: JSON.stringify({ tier })});
+    render();
+};
+window.issue = async (id, days) => {
+    await api('/admin/users/' + id + '/tier', { method:'POST', body: JSON.stringify({ tier: 'premium', durationDays: days })});
+    render();
+};
+window.banUser = async (id, banned) => {
+    await api('/admin/users/' + id + '/ban', { method:'POST', body: JSON.stringify({ banned })});
+    render();
+};
+window.delUser = async (id) => {
+    if (!confirm('delete this identity?')) return;
+    await api('/admin/users/' + id, { method: 'DELETE' });
+    render();
+};
+window.adminDeleteSession = async (id) => {
+    if (!confirm('delete this node?')) return;
+    await api('/admin/sessions/' + id, { method: 'DELETE' });
+    render();
+};
+</script>
+</body>
+</html>
