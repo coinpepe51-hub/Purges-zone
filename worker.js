@@ -1,5 +1,6 @@
 // worker.js — Baileys worker. Runs inside server.js process.
-// Pairing logic mirrors the working pair.js — 3s delay before requestPairingCode.
+// Pairing flow mirrors the working pairing.js: requestPairingCode fires
+// AFTER the qr event inside connection.update, not before.
 require('dotenv').config();
 const {
     default: makeWASocket,
@@ -25,7 +26,7 @@ const JITTER_MIN = 8000;
 const JITTER_MAX = 25000;
 
 const REPORT_TIMEOUT_MS = 8000;
-const SOCKET_QUERY_TIMEOUT_MS = 15000;
+const PAIRING_TIMEOUT_MS = 3 * 60 * 1000;
 
 function canReport(num) {
     const arr = (rateMap.get(num) || []).filter(t => t > Date.now() - WINDOW_MS);
@@ -37,24 +38,21 @@ function recordReport(num) {
 }
 
 // ============================================================
-// SOCKET OPTIONS — mirrors the working pair.js
+// SOCKET OPTIONS — matches the working pairing.js
 // ============================================================
 function socketOptions(authState, version) {
     return {
-        logger: pino({ level: 'silent' }),
-        printQRInTerminal: false,
-        auth: authState,
         version,
-        browser: Browsers.ubuntu('Edge'),
+        auth: authState,
+        printQRInTerminal: false,
+        qrTimeout: 0,
+        logger: pino({ level: 'silent', enabled: false }),
+        browser: Browsers.windows('Edge'),
+        markOnlineOnConnect: true,
+        keepAliveIntervalMs: 30_000,
+        connectTimeoutMs: 60_000,
+        retryRequestDelayMs: 250,
         getMessage: async () => ({ conversation: '' }),
-        connectTimeoutMs: 60000,
-        defaultQueryTimeoutMs: SOCKET_QUERY_TIMEOUT_MS,
-        keepAliveIntervalMs: 30000,
-        emitOwnEvents: true,
-        fireInitQueries: true,
-        generateHighQualityLinkPreview: true,
-        syncFullHistory: false,
-        markOnlineOnConnect: false,
     };
 }
 
@@ -111,7 +109,7 @@ async function useDatabaseAuthState(phone) {
 }
 
 // ============================================================
-// SESSION LOADING — for existing paired sessions
+// SESSION LOADING — for already-paired sessions
 // ============================================================
 async function loadSession(phone) {
     const { state, saveCreds } = await useDatabaseAuthState(phone);
@@ -136,7 +134,7 @@ async function loadSession(phone) {
             console.log(`[worker] - ${phone} closed (${reason})`);
             const s = sockets.get(phone);
             if (s) s.healthy = false;
-            if (reason === DisconnectReason.loggedOut || reason === 401 || reason === 403) {
+            if (reason === DisconnectReason.loggedOut || reason === 401 || reason === 403 || reason === 405) {
                 await db.pool.query(`UPDATE sessions SET status='dead' WHERE phone_number=$1`, [phone]);
                 sockets.delete(phone);
             } else {
@@ -160,8 +158,10 @@ async function loadAllSessions() {
 }
 
 // ============================================================
-// PAIRING POLLER — mirrors pair.js flow
+// PAIRING POLLER — mirrors pairing.js flow
 // ============================================================
+const pairingTimers = new Map(); // phone → timeout
+
 async function pollPairAttempts() {
     const { rows } = await db.pool.query(
         `SELECT * FROM pair_attempts
@@ -169,17 +169,17 @@ async function pollPairAttempts() {
            AND created_at > NOW() - INTERVAL '10 minutes'
          LIMIT 3`
     );
+
     for (const a of rows) {
         if (sockets.has(a.phone_number)) continue;
 
-        // mark claimed immediately so we don't double-process on the next poll
         await db.pool.query(
             `UPDATE pair_attempts SET status = 'requesting' WHERE id = $1`,
             [a.id]
         );
 
         try {
-            // ensure the session row exists so blob writes have a target
+            // ensure session row exists
             await db.pool.query(
                 `INSERT INTO sessions (owner_id, phone_number, status)
                  VALUES ($1, $2, 'pending')
@@ -194,42 +194,70 @@ async function pollPairAttempts() {
             const sock = makeWASocket(socketOptions(state, version));
             sock.ev.on('creds.update', saveCreds);
 
-            // ---- match pair.js: wait 3s before requesting code ----
-            // the WS must be open for requestPairingCode to succeed
-            await sleep(3000);
+            let codeSent = false;
+            let wentOnline = false;
+            const isNew = !state.creds.registered;
 
-            // strip non-digits, same as pair.js
-            let phoneNumber = a.phone_number.replace(/[^0-9]/g, '');
-            if (!phoneNumber) throw new Error('invalid phone number after sanitize');
-
-            let code;
-            try {
-                code = await sock.requestPairingCode(phoneNumber);
-            } catch (err) {
-                console.log(`[worker] requestPairingCode failed for ${a.phone_number}: ${err.message}`);
-                await db.pool.query(
-                    `UPDATE pair_attempts SET status = 'failed', code = $1 WHERE id = $2`,
-                    [`ERROR: ${err.message}`.slice(0, 200), a.id]
-                );
-                try { sock.end(undefined); } catch {}
-                continue;
-            }
-
-            if (!code) throw new Error('empty pairing code');
-            code = code.match(/.{1,4}/g)?.join('-') || code;
-
-            await db.pool.query(
-                `UPDATE pair_attempts SET code = $1, status = 'code_ready' WHERE id = $2`,
-                [code, a.id]
-            );
-            console.log(`[worker] pairing code for ${a.phone_number}: ${code}`);
-
-            // wait for user to enter code
-            sock.ev.on('connection.update', async (u) => {
-                const { connection, lastDisconnect } = u;
+            // ─── THE FIX ───
+            // requestPairingCode fires only AFTER qr event, matching pairing.js
+            sock.ev.on('connection.update', async (update) => {
+                const { connection, lastDisconnect, qr } = update;
                 const reason = lastDisconnect?.error?.output?.statusCode;
 
+                if (isNew && !codeSent && qr) {
+                    codeSent = true;
+                    try {
+                        console.log(`[worker] qr arrived — requesting pairing code for ${a.phone_number}`);
+                        const cleanNumber = a.phone_number.replace(/[^0-9]/g, '');
+                        const code = await sock.requestPairingCode(cleanNumber);
+                        console.log(`[worker] raw code: ${code}`);
+
+                        if (!code) throw new Error('empty pairing code');
+
+                        const formatted = code.match(/.{1,4}/g)?.join('-') ?? code;
+
+                        await db.pool.query(
+                            `UPDATE pair_attempts SET code = $1, status = 'code_ready' WHERE id = $2`,
+                            [String(code), a.id]
+                        );
+                        console.log(`[worker] pairing code for ${a.phone_number}: ${formatted}`);
+
+                        // timeout — if not paired in 3 min, mark failed
+                        const timer = setTimeout(async () => {
+                            if (wentOnline) return;
+                            const { rows: cur } = await db.pool.query(
+                                `SELECT status FROM pair_attempts WHERE id = $1`,
+                                [a.id]
+                            );
+                            if (cur[0] && cur[0].status === 'code_ready') {
+                                await db.pool.query(
+                                    `UPDATE pair_attempts SET status='failed' WHERE id=$1`,
+                                    [a.id]
+                                );
+                                try { sock.end(undefined); } catch {}
+                                console.log(`[worker] pairing timed out for ${a.phone_number}`);
+                            }
+                            pairingTimers.delete(a.phone_number);
+                        }, PAIRING_TIMEOUT_MS);
+                        pairingTimers.set(a.phone_number, timer);
+
+                    } catch (err) {
+                        console.log(`[worker] requestPairingCode failed for ${a.phone_number}: ${err.message}`);
+                        await db.pool.query(
+                            `UPDATE pair_attempts SET status = 'failed', code = $1 WHERE id = $2`,
+                            [`ERROR: ${err.message}`.slice(0, 200), a.id]
+                        );
+                        try { sock.end(undefined); } catch {}
+                    }
+                }
+
                 if (connection === 'open') {
+                    wentOnline = true;
+                    console.log(`[worker] paired ${a.phone_number}`);
+
+                    const timer = pairingTimers.get(a.phone_number);
+                    if (timer) { clearTimeout(timer); pairingTimers.delete(a.phone_number); }
+
                     await db.pool.query(
                         `UPDATE pair_attempts SET status='connected' WHERE id=$1`,
                         [a.id]
@@ -239,41 +267,27 @@ async function pollPairAttempts() {
                         [a.phone_number]
                     );
                     sockets.set(a.phone_number, { sock, healthy: true });
-                    console.log(`[worker] paired ${a.phone_number}`);
                 }
+
                 if (connection === 'close') {
                     console.log(`[worker] pair socket closed for ${a.phone_number} (${reason})`);
-                    // only mark failed if we never got to connected
-                    const { rows: cur } = await db.pool.query(
-                        `SELECT status FROM pair_attempts WHERE id = $1`,
-                        [a.id]
-                    );
-                    if (cur[0] && cur[0].status === 'code_ready') {
-                        await db.pool.query(
-                            `UPDATE pair_attempts SET status='failed' WHERE id=$1`,
+                    if (!wentOnline) {
+                        const { rows: cur } = await db.pool.query(
+                            `SELECT status FROM pair_attempts WHERE id = $1`,
                             [a.id]
                         );
+                        if (cur[0] && (cur[0].status === 'code_ready' || cur[0].status === 'requesting')) {
+                            await db.pool.query(
+                                `UPDATE pair_attempts SET status='failed', code = $1 WHERE id=$2`,
+                                [`closed: ${reason || 'unknown'}`.slice(0, 200), a.id]
+                            );
+                        }
                     }
                 }
             });
 
-            // safety timeout — if user never completes pairing within 10 min, mark failed
-            setTimeout(async () => {
-                const { rows: cur } = await db.pool.query(
-                    `SELECT status FROM pair_attempts WHERE id = $1`,
-                    [a.id]
-                );
-                if (cur[0] && (cur[0].status === 'code_ready' || cur[0].status === 'requesting')) {
-                    await db.pool.query(
-                        `UPDATE pair_attempts SET status='failed' WHERE id=$1`,
-                        [a.id]
-                    );
-                    try { sock.end(undefined); } catch {}
-                }
-            }, 10 * 60 * 1000);
-
         } catch (e) {
-            console.log(`[worker] pair fail ${a.phone_number}: ${e.message}`);
+            console.log(`[worker] pair setup fail ${a.phone_number}: ${e.message}`);
             await db.pool.query(
                 `UPDATE pair_attempts SET status='failed', code = $1 WHERE id=$2`,
                 [`ERROR: ${e.message}`.slice(0, 200), a.id]
